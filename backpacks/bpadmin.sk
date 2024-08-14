@@ -1,0 +1,37 @@
+command /bpadmin <text> [<player>] [<text>] [<boolean = false>]:
+    permission: backpacks.admin
+    trigger:
+        if arg-1 is "reload":
+            load yaml "plugins/Azuryth_Backpacks/config.yml" as "backpack_config"
+            send "&8&l[&aBACKPACKS&8] &r&aSuccessfully reloaded"
+        if arg-1 is "give":
+            if arg-3 is set:
+                load yaml "plugins/Azuryth_Backpacks/backpack_data.yml" as "backpack_data" # Load YAML
+                set {_belongsTo} to yaml value "%arg-3%.belongsTo" from "backpack_data"
+
+                set {_continue} to true
+                if {_belongsTo} is not arg-2's uuid:
+                    arg-4 is false
+                    set {_continue} to false
+                
+                if {_continue} is false:
+                    send "&8[&aBACKPACKS&8] &cThis backpack does not belong to this player."
+                    send "&8[&aBACKPACKS&8] &cTo give it to them anyway, run:"
+                    send "&b/bpadmin %arg-1% %arg-2% %arg-3% true"
+                else:
+                    set {_modelData} to yaml value "%arg-3%.modelData" from "backpack_data"
+                    set {_item} to paper
+                    set custom model data of {_item} to {_modelData}
+                    give {_item} to arg-2
+        if arg-1 is "open":
+            if arg-2 and arg-3 are set:
+                openBackpack(player, arg-3)
+            else:
+                send "&8[&aBACKPACKS&8] &cMissing arguments."
+
+on tab complete of "/bpadmin":
+    if player has permission "backpacks.admin":
+        set tab completions for position 1 to "reload", "open" and "give"
+        if tab arg-1 is "give":
+            if tab arg-2 is set:
+                set tab completions for position 4 to false and true
