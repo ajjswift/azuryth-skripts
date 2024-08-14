@@ -1,0 +1,165 @@
+#
+# Farmer Backpack: 10191
+# Miner Backpack: 10468
+# Adventurer: 10174
+# Builder: 10179
+# Chef: 10185
+# Fisherman: 10453
+# Hunter: 10458
+# Lumberjack: 10463
+#
+
+# Options for the backpacks upon creation.
+options:
+    basesize: 3
+
+# Event handler for when a player drops paper
+on drop of paper:
+    # Check if inventory tracking is disabled for the player and if the player is not sneaking
+    {inventoryTracking::%event-player's uuid%} is false
+    event-player is not sneaking
+    
+    # Close the player's inventory to prevent further actions
+    close player's inventory
+    
+    # Store the item being dropped
+    set {_item} to event-item
+    
+    # Check if the item has custom model data
+    {_item} has custom model data
+    
+    # Check if the item's custom model data is in the list of backpack IDs
+    if {backpackIds::*} contains custom model data of {_item}:
+        cancel event  # Cancel the drop event
+        send "Backpack triggered." to event-player  # Notify the player
+
+
+
+
+# Event handler for when a player swaps hand items
+on swap hand items:
+    cancel event  # Cancel the default item swap event to handle custom logic
+    
+    # Initialize variables to track if the helmet or tool is a backpack item
+    set {_isHelmet} to false
+    set {_isTool} to false
+
+    # Retrieve the custom model data for the player's current tool and helmet
+    set {_tool} to custom model data of event-player's tool
+    set {_helmet} to custom model data of event-player's helmet
+
+    # Check if the helmet's custom model data is in the backpack IDs list
+    if {backpackIds::*} contains {_helmet}:
+        set {_isHelmet} to true  # Set {_isHelmet} to true if it matches
+    # Check if the tool's custom model data is in the backpack IDs list
+    if {backpackIds::*} contains {_tool}:
+        set {_isTool} to true  # Set {_isTool} to true if it matches
+
+    # Determine if neither item is a backpack item
+    if {_isTool} and {_isHelmet} are false:
+        # Execute a command to open the main menu if neither item is a backpack item
+        make console execute command "/dm open main_menu %event-player%"
+    else:
+        # Get Backpack UUIDs of helmet backpack and tool backpack
+        set {_helmetUUID} to string tag "minecraft:custom_data;backpack_uuid" of nbt of event-player's helmet
+        set {_toolUUID} to string tag "minecraft:custom_data;backpack_uuid" of nbt of event-player's tool
+
+
+        # If player has a backpack on helmet and backpack in hand, use hand backpack.
+        if {_toolUUID} is set:
+            set {_bpUUIDToUse} to {_toolUUID}
+        else if {_helmetUUID} is set:
+            set {_bpUUIDToUse} to {_helmetUUID}
+        else:
+            # Player's backpack(s) do(es) not have a uuid, so will generate.
+            # {_isTool} is second so that tool will always have priority, but both will be generated. 
+            # ({_bpUUIDToUse} gets overwritten if {_tool} is true)
+            if {_isHelmet} is true:
+                set {_bpUUIDToUse} to initNewBackpack(event-player, {_helmet}, "helm")
+            if {_isTool} is true:
+                set {_bpUUIDToUse} to initNewBackpack(event-player, {_tool}, "tool")
+
+        # Everything is done. Proceed to opening backpack. 
+
+        openBackpack(event-player, {_bpUUIDToUse})
+
+
+function openBackpack(p: player, uuid: string):
+    # Get backpack data.
+    load yaml "plugins/Azuryth_Backpacks/backpack_data.yml" as "backpack_data" # (Re)load YAML with new values (if just been created.)
+    set {_bpSize} to yaml value "%{_uuid}%.currentSize" from "backpack_data"
+    set {_bpName} to yaml value "%{_uuid}%.name" from "backpack_data"
+    set {_items::*} to {backpackItemStore::%{_uuid}%::*}
+
+    # Open backpack menu
+    set string tag "custom;inBackpack" of nbt of {_p} to {_uuid}
+    set {_backpackMenu} to a new chest inventory with {_bpSize} rows named colored {_bpName}
+    loop {_items::*}:
+        set {_s} to int tag "Slot" of loop-value
+        set {_i} to nbt item from loop-value
+        set slot {_s} of {_backpackMenu} to {_i}
+    open {_backpackMenu} to {_p}
+
+on inventory close:
+    set {_isInBackpack} to string tag "custom;inBackpack" of nbt of event-player
+    if {_isInBackpack} is set:
+        {_isInBackpack} is not ""
+        clear {backpackItemStore::%{_isInBackpack}%::*}
+        loop items in event-inventory:
+            set {_s} to index of loop-slot
+            if {backpackIds::*} contains custom model data of loop-slot:
+                give loop-slot to event-player
+                set loop-slot to air
+            else:
+                set {_i} to full nbt of loop-slot
+                set int tag "Slot" of {_i} to {_s}
+                add {_i} to {_items::*}
+        set {backpackItemStore::%{_isInBackpack}%::*} to {_items::*}
+        set string tag "custom;inBackpack" of nbt of event-player to ""
+
+
+
+function initNewBackpack(p: player, modelData: integer, toolOrHelm: string):: string:
+    set {_uuid} to random uuid
+    if {_toolOrHelm} is "tool":
+        set string tag "minecraft:custom_data;backpack_uuid" of nbt of {_p}'s tool to {_uuid}
+    else if {_toolOrHelm} is "helm":
+        set string tag "minecraft:custom_data;backpack_uuid" of nbt of {_p}'s helmet to {_uuid}
+    load yaml "plugins/Azuryth_Backpacks/backpack_data.yml" as "backpack_data"
+    set {_baseSize} to yaml value "baseSize" from "backpack_config"
+    set {_standardName} to yaml value "standardName" from "backpack_config"
+    replace all "%%player%%" with "%{_p}%" in {_standardName}
+    set yaml value "%{_uuid}%.belongsTo" from "backpack_data" to {_p}'s uuid
+    set yaml value "%{_uuid}%.currentSize" from "backpack_data" to {_baseSize}
+    set yaml value "%{_uuid}%.name" from "backpack_data" to {_standardName}
+    set yaml value "%{_uuid}%.modelData" from "backpack_data" to {_modelData}
+    save yaml "backpack_data"
+    return {_uuid}
+
+
+
+
+# Event handler for when the Skript loads
+on load:
+    send "[BACKPACKS] Loading config..." to console
+    load yaml "plugins/Azuryth_Backpacks/config.yml" as "backpack_config"
+    send "[BACKPACKS] Loaded config." to console
+
+    # Clear existing inventory tracking data
+    clear {inventoryTracking::*}
+    send "[BACKPACKS] Prepared inventory tracking." to console  # Notify console
+    
+    # Initialize and clear the list of backpack IDs
+    clear {backpackIds::*}
+    
+    # Add custom model data IDs for various backpacks
+    add 10191 to {backpackIds::*}  # Farmer Backpack
+    add 10468 to {backpackIds::*}  # Miner Backpack
+    add 10174 to {backpackIds::*}  # Adventurer Backpack
+    add 10179 to {backpackIds::*}  # Builder Backpack
+    add 10185 to {backpackIds::*}  # Chef Backpack
+    add 10453 to {backpackIds::*}  # Fisherman Backpack
+    add 10458 to {backpackIds::*}  # Hunter Backpack
+    add 10463 to {backpackIds::*}  # Lumberjack Backpack
+    
+    send "[BACKPACKS] Added backpacks to {backpackIds::*} list." to console  # Notify console
