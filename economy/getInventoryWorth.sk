@@ -1,0 +1,8 @@
+function getInventoryWorth(p: player):: number:
+    set {_worth} to 0
+    loop all items of {_p}'s inventory:
+        if {economy::coinIds::*} contains custom model data of loop-value:
+            set {_worthOfItem} to int tag "minecraft:custom_data;worth" of nbt of loop-value
+            set {_stackSize} to item amount of loop-value
+            add ({_stackSize} * {_worthOfItem}) to {_worth}
+    return {_worth}
