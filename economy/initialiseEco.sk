@@ -1,0 +1,9 @@
+on script load:
+    clear {economyCoinIds::*}
+    clear {economy::coinIds::*}
+    add 10027 to {economy::coinIds::*} # Copper coin
+    add 10028 to {economy::coinIds::*} # Silver coin
+    add 10029 to {economy::coinIds::*} # Gold coin
+    add 10030 to {economy::coinIds::*} # Platinum coin
+    
+    send "[ECONOMY] Loaded custom model ids."
